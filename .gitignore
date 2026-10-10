@@ -1,0 +1,6 @@
+# Vídeos temporários de gravação de tela / testes
+assets/WhatsApp*.mp4
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ARtist • Teste NFT (Obra 01)</title>
+
+  <!-- Estilos da Interface WebAR -->
+  <link rel="stylesheet" href="css/main.css">
+
+  <!-- A-Frame 1.3.0 estável para WebAR -->
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+
+  <!-- AR.js com suporte a Natural Feature Tracking (NFT) (Versão estável local 3.4.5) -->
+  <script src="js/libs/aframe-ar-nft.js"></script>
+
+  <script>
+    // Gerenciador de ciclo de vida do vídeo com base no rastreamento do marcador
+    AFRAME.registerComponent('videohandler', {
+      init: function () {
+        const marker = this.el;
+        const video = document.querySelector('#overlay-video');
+
+        marker.addEventListener('markerFound', function () {
+          if (video && video.paused) {
+            video.play().catch(() => {});
+          }
+        });
+
+        marker.addEventListener('markerLost', function () {
+          if (video && !video.paused) {
+            video.pause();
+          }
+        });
+      }
+    });
+
+    // Filtro de amortecimento suave de pose (anti-jitter adicional à distância)
+    AFRAME.registerComponent('ar-stabilizer-filter', {
+      schema: {
+        enabled: { type: 'boolean', default: true },
+        factor: { type: 'number', default: 0.25 }
+      },
+      init: function () {
+        this.targetPos = new THREE.Vector3();
+        this.targetQuat = new THREE.Quaternion();
+        this.hasInit = false;
+      },
+      tick: function () {
+        if (!this.data.enabled) return;
+        const parent = this.el.parentEl;
+        if (!parent || !parent.object3D || !parent.object3D.visible) {
+          this.hasInit = false;
+          return;
+        }
+
+        if (!this.hasInit) {
+          this.targetPos.copy(this.el.object3D.position);
+          this.targetQuat.copy(this.el.object3D.quaternion);
+          this.hasInit = true;
+          return;
+        }
+
+        const f = Math.min(Math.max(this.data.factor, 0.05), 1.0);
+        this.el.object3D.position.lerp(this.targetPos, f);
+        this.el.object3D.quaternion.slerp(this.targetQuat, f);
+      }
+    });
+  </script>
+</head>
+<body>
+  <!-- Carregador discreto exibido enquanto os descritores NFT são processados na CPU/GPU -->
+  <div class="arjs-loader" id="nft-loader">
+    <div class="arjs-loader-title">Carregando obra digital</div>
+    <div class="arjs-loader-detail">Processando descritores NFT...</div>
+  </div>
+
+  <!-- Overlay de orientações para o usuário -->
+  <div class="ar-overlay">
+    <header class="ar-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="ar-title">ARtist</span>
+        <span class="ar-badge">Obra 01 • NFT</span>
+      </div>
+      <button class="ar-calib-toggle" id="calib-toggle" type="button" title="Ajuste fino de posição, tamanho e estabilização">
+        ⚙️ Ajustar
+      </button>
+    </header>
+
+    <div class="ar-instruction-container">
+      <div class="ar-instruction" id="status-box">
+        Aponte a câmera para a imagem da Obra 01.
+      </div>
+    </div>
+
+    <footer class="ar-meta-info" id="ratio-display">
+      Aguardando inicialização da câmera...
+    </footer>
+  </div>
+
+  <!-- Painel Tátil de Ajuste Fino e Estabilização -->
+  <div class="ar-calib-panel is-hidden" id="calib-panel">
+    <div class="ar-calib-header">
+      <span class="ar-calib-title">Ajustes & Estabilização</span>
+      <button class="ar-calib-close" id="calib-close" type="button">&times;</button>
+    </div>
+
+    <!-- Abas de Navegação -->
+    <div class="ar-calib-tabs">
+      <button class="ar-calib-tab is-active" id="tab-enquadramento" type="button">📐 Enquadramento</button>
+      <button class="ar-calib-tab" id="tab-estabilizacao" type="button">🎯 Anti-Tremor</button>
+    </div>
+
+    <!-- Seção 1: Enquadramento e Escala -->
+    <div class="ar-calib-section" id="section-enquadramento">
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Posição Vertical (↕):</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="posZ-minus" type="button">▲ Subir</button>
+          <button class="ar-calib-btn" data-action="posZ-plus" type="button">▼ Descer</button>
+        </div>
+      </div>
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Posição Horizontal (↔):</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="posX-minus" type="button">◄ Esquerda</button>
+          <button class="ar-calib-btn" data-action="posX-plus" type="button">► Direita</button>
+        </div>
+      </div>
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Largura (↔):</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="scaleX-minus" type="button">− Estreitar</button>
+          <button class="ar-calib-btn" data-action="scaleX-plus" type="button">+ Alargar</button>
+        </div>
+      </div>
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Altura (↕):</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="scaleY-minus" type="button">− Achatar</button>
+          <button class="ar-calib-btn" data-action="scaleY-plus" type="button">+ Alongar</button>
+        </div>
+      </div>
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Tamanho Geral:</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="scale-minus" type="button">− Reduzir</button>
+          <button class="ar-calib-btn" data-action="scale-plus" type="button">+ Aumentar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seção 2: Ferramentas de Estabilização e Anti-Tremor -->
+    <div class="ar-calib-section is-hidden" id="section-estabilizacao">
+      <div class="ar-calib-label" style="margin-bottom: 2px;">Modos Rápidos de Estabilidade:</div>
+      <div class="ar-calib-presets">
+        <button class="ar-calib-preset-btn" data-preset="agil" type="button">⚡ Ágil</button>
+        <button class="ar-calib-preset-btn is-active" data-preset="equilibrado" type="button">⚖ Equilibrado</button>
+        <button class="ar-calib-preset-btn" data-preset="ultrafirme" type="button">🛡 Ultra Firme</button>
+      </div>
+
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Suavização (Frames): <span class="ar-calib-val-badge" id="val-smooth-count">12</span></span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="smoothCount-minus" type="button">− Menos</button>
+          <button class="ar-calib-btn" data-action="smoothCount-plus" type="button">+ Mais</button>
+        </div>
+      </div>
+
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Tolerância a Ruído: <span class="ar-calib-val-badge" id="val-smooth-tol">0.015</span></span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" data-action="smoothTol-minus" type="button">− Menos</button>
+          <button class="ar-calib-btn" data-action="smoothTol-plus" type="button">+ Mais</button>
+        </div>
+      </div>
+
+      <div class="ar-calib-row">
+        <span class="ar-calib-label">Amortecimento Lerp:</span>
+        <div class="ar-calib-actions">
+          <button class="ar-calib-btn" id="btn-toggle-lerp" type="button">Ligado (0.25)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ar-calib-footer">
+      <button class="ar-calib-btn-reset" id="calib-reset" type="button">Restaurar Padrão</button>
+      <span class="ar-calib-status" id="calib-status"></span>
+    </div>
+  </div>
+
+  <!-- Cena A-Frame com AR.js NFT oficial limpo -->
+  <a-scene
+    embedded
+    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+    renderer="antialias: true; alpha: true; precision: medium;"
+    vr-mode-ui="enabled: false">
+
+    <!-- Gerenciador de Assets -->
+    <a-assets timeout="15000">
+      <video
+        id="overlay-video"
+        src="assets/nft/01/sobreposicao-gatilho-01.mp4"
+        preload="auto"
+        autoplay
+        loop
+        muted
+        playsinline
+        webkit-playsinline
+        crossorigin="anonymous">
+      </video>
+    </a-assets>
+
+    <!-- Âncora NFT oficial com suavização nativa -->
+    <a-nft
+      id="nft-target"
+      videohandler
+      type="nft"
+      url="assets/nft/01/imagem-gatilho-01"
+      smooth="true"
+      smoothCount="12"
+      smoothTolerance="0.015"
+      smoothThreshold="5">
+
+      <!-- Sobreposição 2D Animada calibrada sobre a arte -->
+      <a-video
+        id="overlay-entity"
+        ar-stabilizer-filter="enabled: true; factor: 0.25"
+        src="#overlay-video"
+        width="282.22"
+        height="282.22"
+        position="105.0 0.5 -212.0"
+        rotation="-90 0 0"
+        scale="1.20 0.68 1">
+      </a-video>
+    </a-nft>
+
+    <!-- Câmera AR.js nativa -->
+    <a-entity camera id="main-camera"></a-entity>
+  </a-scene>
+
+  <script>
+    const nftLoader = document.getElementById('nft-loader');
+    const nftTarget = document.getElementById('nft-target');
+    const overlayEntity = document.getElementById('overlay-entity');
+    const overlayVideo = document.getElementById('overlay-video');
+    const ratioDisplay = document.getElementById('ratio-display');
+    const statusBox = document.getElementById('status-box');
+
+    const DEFAULT_CONFIG = {
+      width: 282.22,
+      height: 282.22,
+      posX: 105.0,
+      posZ: -212.0,
+      offsetY: 0.5,
+      scaleX: 1.20,
+      scaleY: 0.68,
+      rotation: '-90 0 0',
+      smoothCount: 12,
+      smoothTolerance: 0.015,
+      smoothThreshold: 5,
+      lerpFilter: true,
+      lerpFactor: 0.25,
+      preset: 'equilibrado'
+    };
+
+    const STORAGE_KEY = 'artist_calib_obra_01';
+    let currentConfig = Object.assign({}, DEFAULT_CONFIG);
+
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        currentConfig = Object.assign({}, DEFAULT_CONFIG, parsed);
+      }
+    } catch (e) {}
+
+    function applyTransform() {
+      if (!overlayEntity) return;
+      overlayEntity.setAttribute('width', currentConfig.width);
+      overlayEntity.setAttribute('height', currentConfig.height);
+      overlayEntity.setAttribute('position', `${currentConfig.posX.toFixed(1)} ${currentConfig.offsetY} ${currentConfig.posZ.toFixed(1)}`);
+      overlayEntity.setAttribute('rotation', currentConfig.rotation);
+      overlayEntity.setAttribute('scale', `${currentConfig.scaleX.toFixed(2)} ${currentConfig.scaleY.toFixed(2)} 1`);
+
+      overlayEntity.setAttribute('ar-stabilizer-filter', {
+        enabled: currentConfig.lerpFilter,
+        factor: currentConfig.lerpFactor
+      });
+
+      applyStabilization();
+      updateCalibUI();
+    }
+
+    function applyStabilization() {
+      if (!nftTarget) return;
+
+      nftTarget.setAttribute('smooth', 'true');
+      nftTarget.setAttribute('smoothCount', currentConfig.smoothCount);
+      nftTarget.setAttribute('smoothTolerance', currentConfig.smoothTolerance);
+      nftTarget.setAttribute('smoothThreshold', currentConfig.smoothThreshold);
+
+      const anchorComponent = nftTarget.components && nftTarget.components['arjs-anchor'];
+      if (anchorComponent && anchorComponent._arAnchor && anchorComponent._arAnchor.parameters) {
+        const p = anchorComponent._arAnchor.parameters;
+        p.smooth = true;
+        p.smoothCount = currentConfig.smoothCount;
+        p.smoothTolerance = currentConfig.smoothTolerance;
+        p.smoothThreshold = currentConfig.smoothThreshold;
+      }
+    }
+
+    function saveConfig() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentConfig));
+      } catch (e) {}
+    }
+
+    function updateCalibUI() {
+      const statusEl = document.getElementById('calib-status');
+      if (statusEl) {
+        statusEl.textContent = `X:${currentConfig.posX.toFixed(0)} Z:${currentConfig.posZ.toFixed(0)} | Sx:${currentConfig.scaleX.toFixed(2)} Sy:${currentConfig.scaleY.toFixed(2)}`;
+      }
+
+      const valCount = document.getElementById('val-smooth-count');
+      if (valCount) valCount.textContent = currentConfig.smoothCount;
+
+      const valTol = document.getElementById('val-smooth-tol');
+      if (valTol) valTol.textContent = currentConfig.smoothTolerance.toFixed(3);
+
+      const btnLerp = document.getElementById('btn-toggle-lerp');
+      if (btnLerp) {
+        btnLerp.textContent = currentConfig.lerpFilter ? `Ligado (${currentConfig.lerpFactor.toFixed(2)})` : 'Desligado';
+        btnLerp.style.borderColor = currentConfig.lerpFilter ? 'rgba(59, 130, 246, 0.7)' : 'rgba(255, 255, 255, 0.18)';
+      }
+
+      document.querySelectorAll('.ar-calib-preset-btn').forEach(btn => {
+        const p = btn.getAttribute('data-preset');
+        btn.classList.toggle('is-active', p === currentConfig.preset);
+      });
+    }
+
+    applyTransform();
+
+    const calibToggle = document.getElementById('calib-toggle');
+    const calibPanel = document.getElementById('calib-panel');
+    const calibClose = document.getElementById('calib-close');
+    const calibReset = document.getElementById('calib-reset');
+
+    if (calibToggle && calibPanel) {
+      calibToggle.addEventListener('click', () => {
+        calibPanel.classList.toggle('is-hidden');
+      });
+    }
+
+    if (calibClose && calibPanel) {
+      calibClose.addEventListener('click', () => {
+        calibPanel.classList.add('is-hidden');
+      });
+    }
+
+    const tabEnquadramento = document.getElementById('tab-enquadramento');
+    const tabEstabilizacao = document.getElementById('tab-estabilizacao');
+    const secEnquadramento = document.getElementById('section-enquadramento');
+    const secEstabilizacao = document.getElementById('section-estabilizacao');
+
+    if (tabEnquadramento && tabEstabilizacao) {
+      tabEnquadramento.addEventListener('click', () => {
+        tabEnquadramento.classList.add('is-active');
+        tabEstabilizacao.classList.remove('is-active');
+        secEnquadramento.classList.remove('is-hidden');
+        secEstabilizacao.classList.add('is-hidden');
+      });
+
+      tabEstabilizacao.addEventListener('click', () => {
+        tabEstabilizacao.classList.add('is-active');
+        tabEnquadramento.classList.remove('is-active');
+        secEstabilizacao.classList.remove('is-hidden');
+        secEnquadramento.classList.add('is-hidden');
+      });
+    }
+
+    document.querySelectorAll('.ar-calib-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.getAttribute('data-preset');
+        currentConfig.preset = preset;
+        switch (preset) {
+          case 'agil':
+            currentConfig.smoothCount = 6;
+            currentConfig.smoothTolerance = 0.008;
+            currentConfig.smoothThreshold = 3;
+            currentConfig.lerpFilter = true;
+            currentConfig.lerpFactor = 0.45;
+            break;
+          case 'equilibrado':
+            currentConfig.smoothCount = 12;
+            currentConfig.smoothTolerance = 0.015;
+            currentConfig.smoothThreshold = 5;
+            currentConfig.lerpFilter = true;
+            currentConfig.lerpFactor = 0.25;
+            break;
+          case 'ultrafirme':
+            currentConfig.smoothCount = 20;
+            currentConfig.smoothTolerance = 0.040;
+            currentConfig.smoothThreshold = 5;
+            currentConfig.lerpFilter = true;
+            currentConfig.lerpFactor = 0.12;
+            break;
+        }
+        saveConfig();
+        applyTransform();
+      });
+    });
+
+    const btnLerp = document.getElementById('btn-toggle-lerp');
+    if (btnLerp) {
+      btnLerp.addEventListener('click', () => {
+        currentConfig.lerpFilter = !currentConfig.lerpFilter;
+        saveConfig();
+        applyTransform();
+      });
+    }
+
+    if (calibReset) {
+      calibReset.addEventListener('click', () => {
+        currentConfig = Object.assign({}, DEFAULT_CONFIG);
+        saveConfig();
+        applyTransform();
+      });
+    }
+
+    document.querySelectorAll('.ar-calib-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-action');
+        switch (action) {
+          case 'posZ-minus':
+            currentConfig.posZ -= 4.0;
+            break;
+          case 'posZ-plus':
+            currentConfig.posZ += 4.0;
+            break;
+          case 'posX-minus':
+            currentConfig.posX -= 3.0;
+            break;
+          case 'posX-plus':
+            currentConfig.posX += 3.0;
+            break;
+          case 'scaleX-minus':
+            currentConfig.scaleX = Math.max(0.4, currentConfig.scaleX - 0.03);
+            break;
+          case 'scaleX-plus':
+            currentConfig.scaleX = Math.min(3.0, currentConfig.scaleX + 0.03);
+            break;
+          case 'scaleY-minus':
+            currentConfig.scaleY = Math.max(0.4, currentConfig.scaleY - 0.03);
+            break;
+          case 'scaleY-plus':
+            currentConfig.scaleY = Math.min(3.0, currentConfig.scaleY + 0.03);
+            break;
+          case 'scale-minus':
+            currentConfig.scaleX = Math.max(0.4, currentConfig.scaleX - 0.03);
+            currentConfig.scaleY = Math.max(0.4, currentConfig.scaleY - 0.03);
+            break;
+          case 'scale-plus':
+            currentConfig.scaleX = Math.min(3.0, currentConfig.scaleX + 0.03);
+            currentConfig.scaleY = Math.min(3.0, currentConfig.scaleY + 0.03);
+            break;
+          case 'smoothCount-minus':
+            currentConfig.smoothCount = Math.max(3, currentConfig.smoothCount - 2);
+            currentConfig.preset = 'personalizado';
+            break;
+          case 'smoothCount-plus':
+            currentConfig.smoothCount = Math.min(30, currentConfig.smoothCount + 2);
+            currentConfig.preset = 'personalizado';
+            break;
+          case 'smoothTol-minus':
+            currentConfig.smoothTolerance = Math.max(0.002, Number((currentConfig.smoothTolerance - 0.005).toFixed(3)));
+            currentConfig.preset = 'personalizado';
+            break;
+          case 'smoothTol-plus':
+            currentConfig.smoothTolerance = Math.min(0.100, Number((currentConfig.smoothTolerance + 0.005).toFixed(3)));
+            currentConfig.preset = 'personalizado';
+            break;
+        }
+        saveConfig();
+        applyTransform();
+      });
+    });
+
+    function unlockMedia() {
+      if (overlayVideo && overlayVideo.paused) {
+        overlayVideo.play().catch(() => {});
+      }
+    }
+    window.addEventListener('click', unlockMedia);
+    window.addEventListener('touchstart', unlockMedia, { passive: true });
+
+    window.addEventListener('arjs-nft-loaded', () => {
+      if (nftLoader) {
+        nftLoader.classList.add('is-hidden');
+      }
+      ratioDisplay.textContent = 'Descritores carregados. Buscando imagem gatilho...';
+    });
+
+    nftTarget.addEventListener('markerFound', () => {
+      statusBox.classList.add('is-hidden');
+      ratioDisplay.textContent = 'Obra 01 identificada';
+      ratioDisplay.style.color = '#ffffff';
+
+      applyTransform();
+      unlockMedia();
+    });
+
+    nftTarget.addEventListener('markerLost', () => {
+      statusBox.classList.remove('is-hidden');
+      statusBox.textContent = 'Aponte a câmera para a imagem da Obra 01.';
+      ratioDisplay.textContent = 'Câmera ativa. Buscando imagem gatilho...';
+      ratioDisplay.style.color = '#888888';
+    });
+
+    window.addEventListener('camera-init', () => {
+      ratioDisplay.textContent = 'Câmera ativa. Buscando imagem gatilho...';
+      const video = document.querySelector('#arjs-video');
+      if (video) {
+        video.play().catch(() => {});
+      }
+    });
+
+    window.addEventListener('camera-error', (err) => {
+      console.error('[AR.js] Erro na câmera:', err);
+      statusBox.textContent = 'Acesso à câmera bloqueado. Verifique as permissões do navegador.';
+      statusBox.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+    });
+  </script>
+</body>
+</html>

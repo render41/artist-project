@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090b" />
+  <title>ARtist • Location AR (LocAR.js)</title>
+
+  <!-- Estilos da Interface WebAR -->
+  <link rel="stylesheet" href="css/main.css" />
+
+  <!--
+    Mapeamento de Módulos ES (Import Map):
+    Carrega o Three.js r170 e o LocAR.js v0.2.12 de alta precisão diretamente sem A-Frame.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./js/libs/three.module.js",
+      "locar": "./js/libs/locar.es.js"
+    }
+  }
+  </script>
+
+  <!-- Polyfill de suporte a Import Maps para navegadores legados (versão estável local) -->
+  <script async src="js/libs/es-module-shims.js"></script>
+</head>
+
+<body class="locar-mode" style="margin: 0; overflow: hidden; background: #000000;">
+  <!-- Canvas WebGL gerenciado pelo Three.js / LocAR -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Retículo sutil no centro geométrico da câmera -->
+  <div class="ar-center-reticle" id="center-reticle" aria-hidden="true"></div>
+
+  <!-- Camada de Interface Superior e Inferior (WebAR HUD) -->
+  <div class="ar-overlay">
+    <!-- Cabeçalho -->
+    <header class="ar-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <a href="index.html" style="color: #a1a1aa; text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center;" aria-label="Voltar ao início">
+          ←
+        </a>
+        <span class="ar-title">ARtist</span>
+        <span class="ar-badge">Location AR</span>
+      </div>
+      <span class="ar-meta-info" id="gps-status-badge">Iniciando sensores...</span>
+    </header>
+
+    <!-- Indicador de Status Central -->
+    <div class="ar-instruction-container">
+      <div class="ar-instruction" id="status-box">
+        Iniciando câmera HD e sensores de movimento...
+      </div>
+    </div>
+
+    <!-- HUD Inferior: Navegação Espacial e Calibração Direcional -->
+    <footer class="ar-location-hud">
+      <div class="ar-direction-row">
+        <div class="ar-compass-dial" id="compass-dial">
+          <div class="ar-compass-needle" id="compass-needle">▲</div>
+        </div>
+        <div class="ar-direction-content">
+          <div class="ar-direction-title" id="direction-title">
+            <span>Aguardando sinal GPS...</span>
+            <span class="ar-aligned-badge" id="aligned-badge" style="display: none;"></span>
+          </div>
+          <div class="ar-direction-hint" id="direction-hint">
+            Aponte o aparelho ao redor para calibrar a orientação
+          </div>
+        </div>
+      </div>
+
+      <div class="ar-location-stats">
+        <span id="target-coords-text">Alvo: -3.72548, -38.49524</span>
+        <span id="distance-text">Distância: -- m</span>
+      </div>
+
+      <div class="ar-location-actions">
+        <button type="button" class="ar-action-btn is-active" id="btn-target-home">Obra 01 (Real)</button>
+        <button type="button" class="ar-action-btn" id="btn-target-ahead">+15m à Frente</button>
+        <button type="button" class="ar-action-btn" id="btn-target-simulate">Simular (25m)</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Lógica Principal em ES Module com LocAR e Three.js -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { App } from 'locar';
+
+    // Coordenadas geográficas reais da Obra 01 (-3.72548, -38.49524)
+    const HOME_COORDS = {
+      latitude: -3.7254797710047827,
+      longitude: -38.49523751122274
+    };
+
+    let currentTarget = { ...HOME_COORDS };
+    let currentTargetMode = 'home'; // 'home' | 'ahead' | 'simulate'
+
+    let locarInstance = null;
+    let appInstance = null;
+    let pinSprite = null;
+    let firstGpsReceived = false;
+
+    // Variáveis de amortecimento suave (Lerp) dos ângulos
+    let smoothedYaw = 0;
+    let smoothedPitch = 0;
+    let isAligned = false;
+
+    // Elementos da interface
+    const canvas = document.getElementById('webgl-canvas');
+    const statusBox = document.getElementById('status-box');
+    const gpsBadge = document.getElementById('gps-status-badge');
+    const compassDial = document.getElementById('compass-dial');
+    const compassNeedle = document.getElementById('compass-needle');
+    const directionTitle = document.getElementById('direction-title');
+    const directionHint = document.getElementById('direction-hint');
+    const distanceText = document.getElementById('distance-text');
+    const targetCoordsText = document.getElementById('target-coords-text');
+    const alignedBadge = document.getElementById('aligned-badge');
+    const centerReticle = document.getElementById('center-reticle');
+
+    const btnHome = document.getElementById('btn-target-home');
+    const btnAhead = document.getElementById('btn-target-ahead');
+    const btnSimulate = document.getElementById('btn-target-simulate');
+
+    // Criação do Sprite 2D de alta definição do Pin
+    function createPinSprite() {
+      const textureLoader = new THREE.TextureLoader();
+      const pinTexture = textureLoader.load('assets/location/pin.png');
+      pinTexture.colorSpace = THREE.SRGBColorSpace;
+
+      const spriteMaterial = new THREE.SpriteMaterial({
+        map: pinTexture,
+        transparent: true,
+        depthTest: false
+      });
+
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(4, 4, 1);
+      return sprite;
+    }
+
+    // Cálculo geodésico de distância (Haversine)
+    function calcDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Atualiza a posição do objeto no mundo 3D quando o alvo muda
+    function repositionPinToTarget() {
+      if (!locarInstance || !pinSprite) return;
+      try {
+        const [x, z] = locarInstance.lonLatToWorldCoords(currentTarget.longitude, currentTarget.latitude);
+        pinSprite.position.set(x, 2.0, z);
+      } catch (err) {
+        console.warn('Posição inicial do LocAR ainda não determinada:', err);
+      }
+    }
+
+    // Loop de renderização e cálculo da orientação espacial a 60 FPS
+    function onAnimationFrame() {
+      requestAnimationFrame(onAnimationFrame);
+
+      if (!appInstance || !pinSprite || !locarInstance) return;
+
+      // Animação sutil de levitação flutuante do pin
+      const time = performance.now() * 0.0025;
+      pinSprite.position.y = 2.0 + Math.sin(time) * 0.22;
+
+      // Vetor entre a câmera e o alvo no espaço tridimensional
+      const deltaWorld = new THREE.Vector3().subVectors(pinSprite.position, appInstance.camera.position);
+      const distance3D = deltaWorld.length();
+
+      // Escala dinâmica suave baseada na distância real
+      const dynamicScale = Math.min(Math.max(distance3D * 0.22, 3.2), 30.0);
+      pinSprite.scale.set(dynamicScale, dynamicScale, 1);
+
+      // Transforma o vetor para o espaço local da câmera
+      const invCamQuat = appInstance.camera.quaternion.clone().invert();
+      const localTarget = deltaWorld.clone().applyQuaternion(invCamQuat);
+
+      // Ângulo horizontal (Yaw: -180 a +180)
+      const rawYawDeg = Math.atan2(localTarget.x, -localTarget.z) * (180 / Math.PI);
+
+      // Ângulo vertical (Pitch: -90 a +90)
+      const planeDistance = Math.hypot(localTarget.x, localTarget.z);
+      const rawPitchDeg = Math.atan2(localTarget.y, Math.max(planeDistance, 0.001)) * (180 / Math.PI);
+
+      // Interpolação suave (Lerp) contornando a transição de 180°/-180°
+      let diffYaw = rawYawDeg - smoothedYaw;
+      while (diffYaw > 180) diffYaw -= 360;
+      while (diffYaw < -180) diffYaw += 360;
+      smoothedYaw += diffYaw * 0.18;
+
+      smoothedPitch += (rawPitchDeg - smoothedPitch) * 0.18;
+
+      updateSpatialHUD(smoothedYaw, smoothedPitch, distance3D, localTarget.z < 0);
+    }
+
+    // Atualização de elementos da interface direcional
+    function updateSpatialHUD(yaw, pitch, distance, isInFront) {
+      const distFormatted = distance < 1000
+        ? `${distance.toFixed(1)} m`
+        : `${(distance / 1000).toFixed(2)} km`;
+      distanceText.textContent = `Distância: ${distFormatted}`;
+
+      compassNeedle.style.transform = `rotate(${yaw}deg)`;
+
+      const absYaw = Math.abs(yaw);
+      const absPitch = Math.abs(pitch);
+
+      // Alinhado quando o alvo está na frente e dentro da margem de mira de ~18°
+      const aligned = isInFront && absYaw < 18 && absPitch < 18;
+
+      if (aligned !== isAligned) {
+        isAligned = aligned;
+        if (aligned) {
+          compassDial.classList.add('is-aligned');
+          centerReticle.classList.add('is-aligned');
+          alignedBadge.style.display = 'inline-block';
+        } else {
+          compassDial.classList.remove('is-aligned');
+          centerReticle.classList.remove('is-aligned');
+          alignedBadge.style.display = 'none';
+        }
+      }
+
+      if (aligned) {
+        directionTitle.firstElementChild.textContent = 'Alvo em mira • À sua frente';
+        compassNeedle.textContent = '◎';
+        directionHint.textContent = `Pin visível a ${distFormatted} • Obra alinhada`;
+        statusBox.textContent = `Alvo alinhado na câmera (${distFormatted})`;
+        return;
+      }
+
+      compassNeedle.textContent = '▲';
+
+      let yawText = '';
+      if (absYaw >= 120) {
+        yawText = `Gire para trás ↻ (${Math.round(absYaw)}°)`;
+      } else if (yaw > 16) {
+        yawText = `Gire para a direita → ${Math.round(yaw)}°`;
+      } else if (yaw < -16) {
+        yawText = `← Gire para a esquerda ${Math.round(absYaw)}°`;
+      } else {
+        yawText = 'Alvo alinhado horizontalmente';
+      }
+
+      let pitchText = '';
+      if (pitch > 16) {
+        pitchText = `Incline para cima ↑ (${Math.round(pitch)}°)`;
+      } else if (pitch < -16) {
+        pitchText = `Incline para baixo ↓ (${Math.round(absPitch)}°)`;
+      } else {
+        pitchText = 'Mantenha na horizontal';
+      }
+
+      directionTitle.firstElementChild.textContent = yawText;
+      directionHint.textContent = `${pitchText} • Distância: ${distFormatted}`;
+      statusBox.textContent = `${yawText} • ${pitchText}`;
+    }
+
+    // Troca de botões ativos
+    function updateButtonStates(activeBtn) {
+      [btnHome, btnAhead, btnSimulate].forEach(btn => btn.classList.remove('is-active'));
+      activeBtn.classList.add('is-active');
+    }
+
+    // Ações dos botões de teste e calibração
+    btnHome.addEventListener('click', () => {
+      currentTargetMode = 'home';
+      currentTarget = { ...HOME_COORDS };
+      updateButtonStates(btnHome);
+      targetCoordsText.textContent = `Alvo: ${currentTarget.latitude.toFixed(5)}, ${currentTarget.longitude.toFixed(5)}`;
+      repositionPinToTarget();
+      statusBox.textContent = 'Alvo definido para Obra 01 (-3.72548, -38.49524)';
+    });
+
+    btnAhead.addEventListener('click', () => {
+      currentTargetMode = 'ahead';
+      updateButtonStates(btnAhead);
+      if (!appInstance || !pinSprite) return;
+
+      // Coloca o pin 15m à frente na orientação atual da câmera
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(appInstance.camera.quaternion);
+      forward.y = 0;
+      forward.normalize();
+
+      const targetX = appInstance.camera.position.x + forward.x * 15;
+      const targetZ = appInstance.camera.position.z + forward.z * 15;
+      pinSprite.position.set(targetX, 2.0, targetZ);
+
+      targetCoordsText.textContent = 'Alvo: +15m à sua frente';
+      statusBox.textContent = 'Pin posicionado a 15 metros à frente para teste';
+    });
+
+    btnSimulate.addEventListener('click', () => {
+      currentTargetMode = 'simulate';
+      updateButtonStates(btnSimulate);
+      if (!locarInstance) return;
+
+      // Simula usuário a aproximadamente 25m ao sul do alvo real
+      const simulatedLat = HOME_COORDS.latitude - 0.00022;
+      const simulatedLon = HOME_COORDS.longitude;
+      locarInstance.fakeGps(simulatedLon, simulatedLat);
+
+      targetCoordsText.textContent = `Alvo: ${HOME_COORDS.latitude.toFixed(5)}, ${HOME_COORDS.longitude.toFixed(5)}`;
+      statusBox.textContent = 'Posição simulada a ~25m do alvo real';
+    });
+
+    // Inicialização do LocAR
+    async function initLocAR() {
+      try {
+        statusBox.textContent = 'Iniciando câmera HD e sensores de orientação...';
+
+        appInstance = new App({
+          cameraOptions: {
+            hFov: 80,
+            near: 0.1,
+            far: 2000
+          },
+          canvas: canvas,
+          videoConstraints: {
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          },
+          gpsOptions: {
+            gpsMinDistance: 0.2,
+            gpsMinAccuracy: 100
+          },
+          deviceOrientationOptions: {
+            enabled: true,
+            smoothingFactor: 0.2
+          }
+        });
+
+        // Inicia a webcam e calibra orientação do dispositivo
+        locarInstance = await appInstance.start();
+
+        statusBox.textContent = 'Câmera HD conectada. Aguardando sinal GPS...';
+        gpsBadge.textContent = 'Buscando GPS...';
+
+        // Ouvinte de erros de geolocalização
+        locarInstance.on('gpserror', (err) => {
+          console.warn('Erro GPS:', err);
+          gpsBadge.textContent = 'GPS indisponível';
+          statusBox.textContent = 'Permissão de GPS negada ou sinal fraco. Use o botão "+15m à Frente" para testar.';
+        });
+
+        // Ouvinte de atualização de geolocalização
+        locarInstance.on('gpsupdate', (ev) => {
+          const { coords } = ev.position;
+          const accuracyText = coords.accuracy ? `±${Math.round(coords.accuracy)}m` : 'ativo';
+          gpsBadge.textContent = `GPS: ${accuracyText}`;
+
+          if (!firstGpsReceived) {
+            pinSprite = createPinSprite();
+            // Em LocAR: add(object, longitude, latitude, elevation)
+            locarInstance.add(pinSprite, currentTarget.longitude, currentTarget.latitude, 2.0);
+            firstGpsReceived = true;
+            statusBox.textContent = 'GPS calibrado • Obra posicionada';
+          }
+
+          if (currentTargetMode === 'home') {
+            const dist = calcDistance(
+              coords.latitude, coords.longitude,
+              currentTarget.latitude, currentTarget.longitude
+            );
+            targetCoordsText.textContent = `Alvo: ${currentTarget.latitude.toFixed(5)}, ${currentTarget.longitude.toFixed(5)}`;
+          }
+        });
+
+        // Inicia a leitura do GPS nativo do dispositivo
+        locarInstance.startGps();
+
+        // Inicia o loop de animação e acompanhamento espacial
+        requestAnimationFrame(onAnimationFrame);
+
+      } catch (err) {
+        console.error('Falha ao inicializar LocAR:', err);
+        statusBox.textContent = 'Erro ao acessar sensores: ' + (err.message || err.code || err);
+        gpsBadge.textContent = 'Erro de permissão';
+      }
+    }
+
+    // Inicia a aplicação
+    initLocAR();
+  </script>
+</body>
+</html>

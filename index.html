@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARtist • Arte em AR</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #141416;
+      --surface-subtle: #1c1c1f;
+      --border: #27272a;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --accent: #ffffff;
+      --accent-text: #09090b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: 480px;
+      width: 100%;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    .meta-tag {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    p.description {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .tab-btn.active {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .btn-link {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: opacity 0.15s ease;
+      margin-bottom: 24px;
+    }
+
+    .btn-link:hover {
+      opacity: 0.9;
+    }
+
+    .preview-section {
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .preview-section h2 {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .preview-section p {
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .image-frame {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000000;
+      border: 1px solid var(--border);
+      padding: 16px;
+      border-radius: 4px;
+    }
+
+    .image-frame.is-light {
+      background: #ffffff;
+    }
+
+    .image-frame img {
+      max-width: 100%;
+      width: 220px;
+      height: 220px;
+      object-fit: contain;
+      display: block;
+      border-radius: 2px;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    footer {
+      font-size: 11px;
+      color: #71717a;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="meta-tag">WebAR</div>
+      <h1>ARtist</h1>
+      <p class="description">
+        Realidade Aumentada. Obras 2D integradas à arquitetura da cidade diretamente pelo navegador.
+      </p>
+    </header>
+
+    <div class="nav-tabs" role="tablist">
+      <button class="tab-btn active" id="btn-nft" onclick="selectTab('nft')" role="tab">
+        NFT (Obra 01)
+      </button>
+      <button class="tab-btn" id="btn-location" onclick="selectTab('location')" role="tab">
+        Location AR
+      </button>
+      <button class="tab-btn" id="btn-marker" onclick="selectTab('marker')" role="tab">
+        Marcador (Hiro)
+      </button>
+    </div>
+
+    <!-- Painel 1: Teste NFT -->
+    <main id="tab-nft" class="card tab-content active" role="tabpanel">
+      <a href="nft/01.html" class="btn-link">
+        Abrir câmera NFT (Obra 01)
+      </a>
+      <a href="test-nft.html" class="btn-link" style="background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: -16px;">
+        Laboratório de Teste (test-nft.html)
+      </a>
+
+      <section class="preview-section">
+        <h2>Imagem Gatilho • Calibração</h2>
+        <p>
+          Mantenha esta imagem visível na tela e aponte a câmera do smartphone na página NFT. A animação 2D se fixará exatamente sobre a ilustração.
+        </p>
+        <div class="image-frame">
+          <img src="assets/nft/01/imagem-gatilho-01.jpeg" alt="Imagem Gatilho Obra 01">
+        </div>
+      </section>
+    </main>
+
+    <!-- Painel 2: Teste Location AR -->
+    <section id="tab-location" class="card tab-content" role="tabpanel">
+      <a href="location/01.html" class="btn-link">
+        Abrir câmera Location AR (Obra 01)
+      </a>
+      <a href="test-location.html" class="btn-link" style="background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: -16px;">
+        Laboratório de Calibração (test-location.html)
+      </a>
+
+      <section class="preview-section">
+        <h2>Pin Geográfico • Realidade Aumentada</h2>
+        <p>
+          O pin é ancorado via GPS e bússola em coordenadas reais no espaço físico, com indicador direcional suave no rodapé para apontar a câmera.
+        </p>
+        <div class="image-frame">
+          <img src="assets/location/pin.png" alt="Pin Geográfico" style="width: 140px; height: 140px;">
+        </div>
+      </section>
+    </section>
+
+    <!-- Painel 3: Teste Marcador Hiro -->
+    <section id="tab-marker" class="card tab-content" role="tabpanel">
+      <a href="test-marker.html" class="btn-link">
+        Abrir câmera de validação (Hiro)
+      </a>
+
+      <section class="preview-section">
+        <h2>Marcador Hiro de Calibração</h2>
+        <p>
+          Para testar sem impressão física, mantenha o padrão abaixo visível e aponte a câmera do smartphone.
+        </p>
+        <div class="image-frame is-light">
+          <img src="assets/markers/hiro.png" alt="Marcador Hiro">
+        </div>
+      </section>
+    </section>
+
+    <footer>
+      LocAR.js (Location AR) • AR.js & A-Frame (NFT / Marcador)
+    </footer>
+  </div>
+
+  <script>
+    function selectTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      if (tab === 'nft') {
+        document.getElementById('btn-nft').classList.add('active');
+        document.getElementById('tab-nft').classList.add('active');
+      } else if (tab === 'location') {
+        document.getElementById('btn-location').classList.add('active');
+        document.getElementById('tab-location').classList.add('active');
+      } else {
+        document.getElementById('btn-marker').classList.add('active');
+        document.getElementById('tab-marker').classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
