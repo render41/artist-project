@@ -664,4 +664,118 @@ canvas.a-canvas {
   margin-left: 4px;
 }
 
+/* --------------------------------------------------------------------------
+   Location AR 3D: Barra de Progresso de Modelos GLB e Seletor de Obras
+   -------------------------------------------------------------------------- */
+
+.ar-header-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ar-back-link {
+  color: #a1a1aa;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.ar-back-link:hover {
+  color: #ffffff;
+}
+
+.ar-model-progress {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(320px, 100%);
+  margin: 8px auto 0;
+  background: rgba(14, 14, 16, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.ar-model-progress[hidden] {
+  display: none;
+}
+
+.ar-model-progress-label {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  color: #e4e4e7;
+}
+
+.ar-progress-bar {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  width: 100%;
+  height: 6px;
+  border-radius: 1e5px;
+  background: rgba(255, 255, 255, 0.14);
+  container-type: inline-size;
+  --progress-bar-radius: 1e5px;
+  --progress-bar-fill: #ffffff;
+  --progress-bar-indeterminate-size: 30%;
+  --progress-bar-indeterminate-animation-duration: 1.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ar-progress-bar {
+    --progress-bar-indeterminate-animation-duration: 10s;
+  }
+}
+
+.ar-progress-bar:indeterminate {
+  --progress-bar-animation: progress-bar-indeterminate var(--progress-bar-indeterminate-animation-duration) infinite linear;
+}
+
+.ar-progress-bar::-webkit-progress-bar {
+  background: transparent;
+}
+
+.ar-progress-bar::-webkit-progress-value {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  transition: inline-size 0.2s ease;
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+.ar-progress-bar::-moz-progress-bar {
+  background: var(--progress-bar-fill);
+  border-radius: var(--progress-bar-radius);
+  transition: inline-size 0.2s ease;
+  animation: var(--progress-bar-animation, revert-rule);
+}
+
+@keyframes progress-bar-indeterminate {
+  from,
+  to {
+    inline-size: var(--progress-bar-indeterminate-size);
+    margin-right: auto;
+  }
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 100cqi;
+  }
+}
+
+.ar-installation-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.ar-aligned-badge[hidden] {
+  display: none;
+}
+
 

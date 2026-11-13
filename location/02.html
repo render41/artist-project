@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090b" />
+  <title>ARtist • Obra 02 — Mão em Pé</title>
+
+  <link rel="stylesheet" href="../css/main.css" />
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../js/libs/three.module.js",
+      "locar": "../js/libs/locar.es.js"
+    }
+  }
+  </script>
+  <script async src="../js/libs/es-module-shims.js"></script>
+</head>
+
+<body class="locar-mode">
+  <canvas id="webgl-canvas" aria-hidden="true"></canvas>
+  <div class="ar-center-reticle" id="center-reticle" aria-hidden="true"></div>
+
+  <div class="ar-overlay">
+    <header class="ar-header">
+      <div class="ar-header-group">
+        <a href="../index.html" class="ar-back-link" aria-label="Voltar ao início">←</a>
+        <h1 class="ar-title">ARtist</h1>
+        <span class="ar-badge" id="installation-badge">Obra 02 • Mão em Pé</span>
+      </div>
+      <span class="ar-meta-info" id="gps-status-badge">Iniciando sensores...</span>
+    </header>
+
+    <main class="ar-instruction-container">
+      <div>
+        <div class="ar-instruction" id="status-box" role="status" aria-live="polite">
+          Iniciando câmera HD e sensores de movimento...
+        </div>
+        <div class="ar-model-progress" id="model-progress-container" hidden>
+          <label class="ar-model-progress-label" id="model-progress-label" for="model-progress">
+            Carregando modelo 3D...
+          </label>
+          <progress id="model-progress" class="ar-progress-bar" max="100"></progress>
+        </div>
+      </div>
+    </main>
+
+    <footer class="ar-location-hud">
+      <div class="ar-direction-row">
+        <div class="ar-compass-dial" id="compass-dial" aria-hidden="true">
+          <div class="ar-compass-needle" id="compass-needle">▲</div>
+        </div>
+        <div class="ar-direction-content">
+          <div class="ar-direction-title">
+            <span id="direction-title-text">Aguardando sinal GPS...</span>
+            <span class="ar-aligned-badge" id="aligned-badge" hidden aria-hidden="true"></span>
+          </div>
+          <div class="ar-direction-hint" id="direction-hint">
+            Pátio Central IFCE
+          </div>
+        </div>
+      </div>
+
+      <div class="ar-location-stats">
+        <span id="target-coords-text">Alvo: -3.74448, -38.53650</span>
+        <span id="distance-text">Distância: -- m</span>
+      </div>
+
+      <div class="ar-location-actions">
+        <button type="button" class="ar-action-btn is-active" id="btn-target-location">Obra 02 (Real)</button>
+        <button type="button" class="ar-action-btn" id="btn-target-ahead">+15m à Frente</button>
+        <button type="button" class="ar-action-btn" id="btn-target-simulate">Simular (25m)</button>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module">
+    import { bootLocationArPage } from '../js/location/location-page-bootstrap.js';
+
+    bootLocationArPage('02');
+  </script>
+</body>
+</html>
+
