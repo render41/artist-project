@@ -12,8 +12,11 @@ export const INSTALLATIONS = Object.freeze([
     latitude: -3.740955,
     longitude: -38.539123,
     modelUrl: new URL('../../assets/location/01_mao_apontando.glb', import.meta.url).href,
-    elevationMeters: 2.2,
-    targetDimensionMeters: 4.0,
+    elevationMeters: 7.2,
+    targetDimensionMeters: 7.2,
+    // offsetMeters.y (5m) já está consolidado em elevationMeters (2.2 + 5 = 7.2m) para evitar soma dupla na altura.
+    defaultOffsetMeters: Object.freeze({ x: 12.25, y: 0, z: 0 }),
+    defaultRotationDegrees: Object.freeze({ x: 0, y: 0, z: 0 }),
     idleRotationSpeed: 0.25,
     levitationAmplitude: 0.18
   }),
