@@ -25,8 +25,10 @@ export const INSTALLATIONS = Object.freeze([
     latitude: -3.744483,
     longitude: -38.536499,
     modelUrl: new URL('../../assets/location/02_mao_em_pe.glb', import.meta.url).href,
-    elevationMeters: 2.0,
-    targetDimensionMeters: 4.0,
+    elevationMeters: 7,
+    targetDimensionMeters: 13,
+    defaultOffsetMeters: Object.freeze({ x: -10, y: 0, z: 12.75 }),
+    defaultRotationDegrees: Object.freeze({ x: -20, y: -8, z: -10 }),
     idleRotationSpeed: 0.25,
     levitationAmplitude: 0.16
   }),

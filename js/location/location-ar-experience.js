@@ -79,6 +79,7 @@ export async function startLocationArExperience({ initialInstallationId, element
   let locarInstance = null;
   let anchorGroup = null;
   let transformGroup = null;
+  let calibrationGroup = null;
   let motionGroup = null;
   let activeModelGroup = null;
   let activeAnimationMixer = null;
@@ -102,6 +103,32 @@ export async function startLocationArExperience({ initialInstallationId, element
    * Aplica deslocamento de posição, escala e rotação ao grupo de calibração 3D.
    * @param {object} transformState
    */
+  const ZERO_VECTOR_3D = Object.freeze({ x: 0, y: 0, z: 0 });
+
+  /**
+   * Aplica a calibração base da obra (offset e rotação iniciais) sem interferir no Ajuste 3D.
+   * @param {object} installation
+   */
+  function applyInstallationBaseline(installation) {
+    if (!calibrationGroup) {
+      return;
+    }
+
+    const offset = installation?.defaultOffsetMeters || ZERO_VECTOR_3D;
+    const rotation = installation?.defaultRotationDegrees || ZERO_VECTOR_3D;
+
+    calibrationGroup.position.set(
+      offset.x ?? 0,
+      offset.y ?? 0,
+      offset.z ?? 0
+    );
+    calibrationGroup.rotation.set(
+      THREE.MathUtils.degToRad(rotation.x ?? 0),
+      THREE.MathUtils.degToRad(rotation.y ?? 0),
+      THREE.MathUtils.degToRad(rotation.z ?? 0)
+    );
+  }
+
   function applyTransformState(transformState) {
     isAutoAnimationEnabled = Boolean(transformState.autoAnimate);
     if (!transformGroup) {
@@ -297,6 +324,7 @@ export async function startLocationArExperience({ initialInstallationId, element
 
     updateTargetCoordsDisplay();
     transformControls.refreshContextLabels();
+    applyInstallationBaseline(nextInstallation);
 
     if (currentTargetMode === 'simulate' && locarInstance) {
       const simulatedLatitude =
@@ -376,7 +404,7 @@ export async function startLocationArExperience({ initialInstallationId, element
   function renderFrame() {
     requestAnimationFrame(renderFrame);
 
-    if (!appInstance || !anchorGroup || !transformGroup || !motionGroup) {
+    if (!appInstance || !anchorGroup || !transformGroup || !calibrationGroup || !motionGroup) {
       return;
     }
 
@@ -395,7 +423,7 @@ export async function startLocationArExperience({ initialInstallationId, element
     }
 
     const targetWorldPosition = new THREE.Vector3();
-    transformGroup.getWorldPosition(targetWorldPosition);
+    calibrationGroup.getWorldPosition(targetWorldPosition);
 
     const deltaWorldVector = new THREE.Vector3().subVectors(
       targetWorldPosition,
@@ -469,9 +497,13 @@ export async function startLocationArExperience({ initialInstallationId, element
     transformGroup = new THREE.Group();
     anchorGroup.add(transformGroup);
 
-    motionGroup = new THREE.Group();
-    transformGroup.add(motionGroup);
+    calibrationGroup = new THREE.Group();
+    transformGroup.add(calibrationGroup);
 
+    motionGroup = new THREE.Group();
+    calibrationGroup.add(motionGroup);
+
+    applyInstallationBaseline(currentInstallation);
     applyTransformState(transformControls.getState());
 
     hud.setStatus('Câmera conectada. Carregando escultura 3D e sinal GPS...');
