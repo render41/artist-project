@@ -1,11 +1,12 @@
 # ARtist • Intervenção Artística em WebAR (Geolocation 3D)
 
-Projeto de Realidade Aumentada baseada na Web (WebAR) com foco em **geolocalização (GPS + bússola)** executado diretamente no navegador do smartphone via QR Codes, sem necessidade de download de aplicativos.
+Projeto de Realidade Aumentada baseada na Web (WebAR) com foco exclusivo em **geolocalização (GPS + bússola)** executado diretamente no navegador do smartphone via QR Codes, sem necessidade de download de aplicativos.
 
 ## 1. Diretrizes Técnicas do Projeto
 - **Escopo Geolocation 3D:** Modelos 3D otimizados em formato **`.glb`**, ancorados em coordenadas geográficas reais via **Three.js (r170)** + **`GLTFLoader`** + **LocAR.js**.
-- **Arquitetura Modular + Multi-Páginas:** Cada obra possui sua página autônoma (`location/01.html`, `location/02.html`, `location/03.html`), compartilhando os módulos de carregamento, normalização de pivô/escala e HUD espacial em `js/location/`.
-- **Laboratório de Bancada:** `test-location.html` permite alternar entre as obras e validar visualmente com os modos `+15m à Frente` e `Simular (25m)` mesmo em ambientes fechados.
+- **Normalização Automática de Modelos:** Na carga do `.glb`, `model-loader.js` calcula o `THREE.Box3`, centraliza o pivô geométrico e normaliza a maior dimensão para `targetDimensionMeters`.
+- **Arquitetura Modular + Multi-Páginas:** Cada obra possui sua página autônoma (`location/01.html`, `location/02.html`, `location/03.html`), compartilhando os módulos de carregamento, HUD espacial e calibração em `js/location/`.
+- **Laboratório de Bancada:** `test-location.html` permite alternar entre as obras em tempo real e validar posicionamento em ambientes fechados.
 
 ---
 
@@ -19,7 +20,25 @@ Projeto de Realidade Aumentada baseada na Web (WebAR) com foco em **geolocaliza�
 
 ---
 
-## 3. Estrutura Principal
+## 3. Ferramentas de Teste e Calibração 3D
+
+Todas as páginas de Location AR (`location/*.html` e `test-location.html`) contam com ferramentas integradas para teste em campo e em bancada:
+
+### Modos de Ancoragem
+- **Obra XX (Real):** Ancora o modelo 3D na coordenada GPS real cadastrada em `installations-catalog.js`.
+- **`+15m à Frente`:** Posiciona o objeto 15 metros à frente da orientação atual da câmera (ideal para testes em ambientes fechados sem sinal GPS).
+- **`Simular (25m)`:** Aciona `locarInstance.fakeGps(...)` simulando o usuário a ~25 metros ao sul da coordenada real da obra.
+
+### Painel **Ajuste 3D** (`transform-controls.js`)
+Acessível pelo botão **Ajuste 3D** no canto superior direito da câmera, opera sobre `transformGroup` (preservando os ajustes relativos mesmo quando o GPS atualiza `anchorGroup`):
+- **Posição:** deslocamento relativo à âncora em metros — `Lateral (X)` (`-20m` a `+20m`), `Altura (Y)` (`-5m` a `+15m`) e `Profundidade (Z)` (`-20m` a `+20m`), com passo de `0.25m`.
+- **Escala:** multiplicador uniforme de `0.10x` a `4.00x` (passo `0.05x`), exibindo o tamanho resultante em metros.
+- **Rotação:** ajuste fino nos 3 eixos (`X`, `Y`, `Z` de `-180°` a `+180°`) + botão **Animação: Ligada/Pausada** para congelar a rotação/levitação automática durante inspeção de ângulos.
+- **Resetar tudo / Copiar valores:** restaura os valores padrão ou copia um JSON com `elevationMeters`, `targetDimensionMeters`, `offsetMeters` e `rotationDegrees` calibrados.
+
+---
+
+## 4. Estrutura Principal
 
 ```text
 artist-project/
@@ -35,7 +54,7 @@ artist-project/
 │       ├── 02_mao_em_pe.glb
 │       └── origami.glb
 ├── css/
-│   └── main.css                         # Estilos do HUD WebAR e barra de progresso
+│   └── main.css                         # Estilos do HUD WebAR, <progress> e sliders 3D
 └── js/
     ├── libs/
     │   ├── three.module.js              # Three.js r170
@@ -48,13 +67,22 @@ artist-project/
         ├── installations-catalog.js     # Coordenadas e parâmetros 3D das obras
         ├── model-loader.js              # Carregamento, normalização de pivô/escala e dispose
         ├── spatial-hud.js               # Bússola, mira e progresso nativo <progress>
+        ├── transform-controls.js        # Painel de teste (Posição, Escala, Rotação)
         ├── location-ar-experience.js    # Controlador Three.js + LocAR + iluminação PBR
         └── location-page-bootstrap.js   # Inicialização compartilhada das páginas HTML
 ```
 
 ---
 
-## 4. Como Executar Localmente com HTTPS
+## 5. Como Adicionar uma Nova Obra 3D
+
+1. Salve o arquivo `.glb` em `assets/location/`.
+2. Cadastre um novo item em `INSTALLATIONS` no arquivo `js/location/installations-catalog.js` com `id`, `title`, `locationName`, `latitude`, `longitude`, `modelUrl`, `elevationMeters` e `targetDimensionMeters`.
+3. Crie a página `location/04.html` copiando `location/03.html` e alterando `bootLocationArPage('04')`, e adicione o card correspondente em `index.html` e `test-location.html`.
+
+---
+
+## 6. Como Executar Localmente com HTTPS
 
 > **Aviso de Segurança dos Navegadores:** O acesso à câmera (`getUserMedia`), orientação (`DeviceOrientationEvent`) e localização (`Geolocation API`) exige conexão segura (**HTTPS** ou `localhost`).
 

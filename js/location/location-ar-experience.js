@@ -3,6 +3,7 @@ import { App } from 'locar';
 import { findInstallationById, INSTALLATIONS } from './installations-catalog.js';
 import { disposeModelObject, loadNormalizedGltfModel } from './model-loader.js';
 import { createSpatialHud } from './spatial-hud.js';
+import { createTransformControls } from './transform-controls.js';
 
 const SPATIAL_CONFIG = Object.freeze({
   cameraHorizontalFov: 80,
@@ -77,6 +78,8 @@ export async function startLocationArExperience({ initialInstallationId, element
   let appInstance = null;
   let locarInstance = null;
   let anchorGroup = null;
+  let transformGroup = null;
+  let motionGroup = null;
   let activeModelGroup = null;
   let activeAnimationMixer = null;
   let loadSequenceCounter = 0;
@@ -84,6 +87,43 @@ export async function startLocationArExperience({ initialInstallationId, element
   let hasGpsOrigin = false;
   let smoothedYawDegrees = 0;
   let smoothedPitchDegrees = 0;
+  let isAutoAnimationEnabled = true;
+
+  const transformControls = createTransformControls({
+    toggleButton: elements.transformToggleButton,
+    panelElement: elements.transformPanel,
+    getInstallationContext: () => currentInstallation,
+    onChange: (nextState) => {
+      applyTransformState(nextState);
+    }
+  });
+
+  /**
+   * Aplica deslocamento de posição, escala e rotação ao grupo de calibração 3D.
+   * @param {object} transformState
+   */
+  function applyTransformState(transformState) {
+    isAutoAnimationEnabled = Boolean(transformState.autoAnimate);
+    if (!transformGroup) {
+      return;
+    }
+
+    transformGroup.position.set(
+      transformState.offsetX,
+      transformState.offsetY,
+      transformState.offsetZ
+    );
+    transformGroup.scale.setScalar(transformState.scaleMultiplier);
+    transformGroup.rotation.set(
+      THREE.MathUtils.degToRad(transformState.rotationXDeg),
+      THREE.MathUtils.degToRad(transformState.rotationYDeg),
+      THREE.MathUtils.degToRad(transformState.rotationZDeg)
+    );
+
+    if (!isAutoAnimationEnabled && motionGroup) {
+      motionGroup.position.y = 0;
+    }
+  }
 
   /**
    * Atualiza o texto da barra de status com a coordenada geográfica ativa.
@@ -153,10 +193,10 @@ export async function startLocationArExperience({ initialInstallationId, element
    * Remove o modelo atualmente montado na âncora e libera recursos da GPU.
    */
   function clearActiveModel() {
-    if (!anchorGroup || !activeModelGroup) {
+    if (!motionGroup || !activeModelGroup) {
       return;
     }
-    anchorGroup.remove(activeModelGroup);
+    motionGroup.remove(activeModelGroup);
     disposeModelObject(activeModelGroup);
     activeModelGroup = null;
     activeAnimationMixer = null;
@@ -171,7 +211,7 @@ export async function startLocationArExperience({ initialInstallationId, element
 
     clearActiveModel();
     activeModelGroup = createLoadingPlaceholder();
-    anchorGroup.add(activeModelGroup);
+    motionGroup.add(activeModelGroup);
 
     hud.showLoadingProgress(null, `Carregando ${installation.title}...`);
 
@@ -195,7 +235,9 @@ export async function startLocationArExperience({ initialInstallationId, element
       clearActiveModel();
       activeModelGroup = object;
       activeAnimationMixer = mixer;
-      anchorGroup.add(activeModelGroup);
+      motionGroup.position.set(0, 0, 0);
+      motionGroup.rotation.set(0, 0, 0);
+      motionGroup.add(activeModelGroup);
 
       hud.hideLoadingProgress();
       hud.setStatus(`${installation.title} carregada em 3D`);
@@ -245,6 +287,7 @@ export async function startLocationArExperience({ initialInstallationId, element
     }
 
     updateTargetCoordsDisplay();
+    transformControls.refreshContextLabels();
 
     if (currentTargetMode === 'simulate' && locarInstance) {
       const simulatedLatitude =
@@ -324,27 +367,29 @@ export async function startLocationArExperience({ initialInstallationId, element
   function renderFrame() {
     requestAnimationFrame(renderFrame);
 
-    if (!appInstance || !anchorGroup) {
+    if (!appInstance || !anchorGroup || !transformGroup || !motionGroup) {
       return;
     }
 
     const deltaSeconds = animationClock.getDelta();
-    if (activeAnimationMixer) {
+    if (activeAnimationMixer && isAutoAnimationEnabled) {
       activeAnimationMixer.update(deltaSeconds);
     }
 
-    const elapsedMs = performance.now();
-    const levitationOffset =
-      Math.sin(elapsedMs * SPATIAL_CONFIG.levitationFrequency) *
-      currentInstallation.levitationAmplitude;
-
-    if (activeModelGroup) {
-      activeModelGroup.position.y = levitationOffset;
-      activeModelGroup.rotation.y += currentInstallation.idleRotationSpeed * deltaSeconds;
+    if (isAutoAnimationEnabled) {
+      const elapsedMs = performance.now();
+      const levitationOffset =
+        Math.sin(elapsedMs * SPATIAL_CONFIG.levitationFrequency) *
+        currentInstallation.levitationAmplitude;
+      motionGroup.position.y = levitationOffset;
+      motionGroup.rotation.y += currentInstallation.idleRotationSpeed * deltaSeconds;
     }
 
+    const targetWorldPosition = new THREE.Vector3();
+    transformGroup.getWorldPosition(targetWorldPosition);
+
     const deltaWorldVector = new THREE.Vector3().subVectors(
-      anchorGroup.position,
+      targetWorldPosition,
       appInstance.camera.position
     );
     const distanceMeters = deltaWorldVector.length();
@@ -377,6 +422,7 @@ export async function startLocationArExperience({ initialInstallationId, element
   try {
     hud.setStatus('Iniciando câmera HD e sensores de orientação...');
     updateTargetCoordsDisplay();
+    transformControls.refreshContextLabels();
     bindInteractionControls();
 
     appInstance = new App({
@@ -409,6 +455,14 @@ export async function startLocationArExperience({ initialInstallationId, element
     anchorGroup = new THREE.Group();
     anchorGroup.position.set(0, currentInstallation.elevationMeters, -15);
     appInstance.scene.add(anchorGroup);
+
+    transformGroup = new THREE.Group();
+    anchorGroup.add(transformGroup);
+
+    motionGroup = new THREE.Group();
+    transformGroup.add(motionGroup);
+
+    applyTransformState(transformControls.getState());
 
     hud.setStatus('Câmera conectada. Carregando escultura 3D e sinal GPS...');
     hud.setGpsBadge('Buscando GPS...');

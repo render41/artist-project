@@ -34,6 +34,18 @@
       <span class="ar-meta-info" id="gps-status-badge">Iniciando sensores...</span>
     </header>
 
+    <div class="ar-transform-toolbar">
+      <button
+        type="button"
+        class="ar-calib-toggle"
+        id="btn-toggle-transform"
+        aria-expanded="false"
+        aria-controls="transform-calib-panel"
+      >
+        Ajuste 3D
+      </button>
+    </div>
+
     <main class="ar-instruction-container">
       <div>
         <div class="ar-instruction" id="status-box" role="status" aria-live="polite">
@@ -75,6 +87,13 @@
         <button type="button" class="ar-action-btn" id="btn-target-simulate">Simular (25m)</button>
       </div>
     </footer>
+
+    <aside
+      id="transform-calib-panel"
+      class="ar-calib-panel ar-transform-panel"
+      aria-label="Ferramentas de ajuste 3D"
+      hidden
+    ></aside>
   </div>
 
   <script type="module">

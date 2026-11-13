@@ -24,6 +24,8 @@ export function bootLocationArPage(initialInstallationId) {
     buttonTargetReal: document.getElementById('btn-target-location'),
     buttonTargetAhead: document.getElementById('btn-target-ahead'),
     buttonTargetSimulate: document.getElementById('btn-target-simulate'),
+    transformToggleButton: document.getElementById('btn-toggle-transform'),
+    transformPanel: document.getElementById('transform-calib-panel'),
     installationButtons: Array.from(document.querySelectorAll('[data-installation-id]'))
   };
 
