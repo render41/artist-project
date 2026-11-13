@@ -42,8 +42,11 @@ export const INSTALLATIONS = Object.freeze([
     latitude: -3.800710,
     longitude: -38.490736,
     modelUrl: new URL('../../assets/location/origami.glb', import.meta.url).href,
-    elevationMeters: 2.5,
-    targetDimensionMeters: 4.8,
+    elevationMeters: -0.25,
+    targetDimensionMeters: 19.2,
+    // offsetMeters.y (-2.75m) já está consolidado em elevationMeters (2.5 - 2.75 = -0.25m) para evitar aplicação dupla.
+    defaultOffsetMeters: Object.freeze({ x: 5.75, y: 0, z: -18 }),
+    defaultRotationDegrees: Object.freeze({ x: 6, y: 6, z: 1 }),
     idleRotationSpeed: 0.2,
     levitationAmplitude: 0.22
   }),
