@@ -1,21 +1,33 @@
 import * as THREE from 'three';
 import { App } from 'locar';
+import { createAndroidOrientationControls } from './android-orientation-controls.js';
+import {
+  createCameraFovCalibrator,
+  loadSavedLongSideFovDegrees
+} from './camera-fov-calibrator.js';
+import { createGpsStabilizer } from './gps-stabilizer.js';
 import { findInstallationById, INSTALLATIONS } from './installations-catalog.js';
 import { disposeModelObject, loadNormalizedGltfModel } from './model-loader.js';
 import { createSpatialHud } from './spatial-hud.js';
 import { createTransformControls } from './transform-controls.js';
 
 const SPATIAL_CONFIG = Object.freeze({
-  cameraHorizontalFov: 80,
   cameraNear: 0.1,
   cameraFar: 15000,
-  gpsMinDistanceMeters: 0.2,
-  gpsMinAccuracyMeters: 100,
-  orientationSmoothing: 0.2,
+  locarGpsMinDistanceMeters: 0,
+  locarGpsMinAccuracyMeters: 250,
   hudAngleSmoothing: 0.18,
   aheadTestDistanceMeters: 15.0,
   simulationLatitudeOffset: -0.00022,
   levitationFrequency: 0.0022
+});
+
+const ORIENTATION_MODE_LABELS = Object.freeze({
+  'gyro-compass': 'Giroscópio + Bússola (estabilizado)',
+  'gyro-locked': 'Somente Giroscópio (Norte travado)',
+  'gyro-only': 'Giroscópio (ajuste o Norte manualmente)',
+  'compass-only': 'Somente Bússola (suavizada)',
+  waiting: 'Aguardando sensores de movimento...'
 });
 
 /**
@@ -77,6 +89,10 @@ export async function startLocationArExperience({ initialInstallationId, element
 
   let appInstance = null;
   let locarInstance = null;
+  let orientationControls = null;
+  let cameraFovCalibrator = null;
+  let gpsStabilizer = null;
+
   let anchorGroup = null;
   let transformGroup = null;
   let calibrationGroup = null;
@@ -89,20 +105,82 @@ export async function startLocationArExperience({ initialInstallationId, element
   let smoothedYawDegrees = 0;
   let smoothedPitchDegrees = 0;
   let isAutoAnimationEnabled = true;
+  let latestOrientationMode = 'waiting';
+  let latestGpsAccuracyMeters = null;
+
+  const initialCameraFovDegrees = loadSavedLongSideFovDegrees();
+
+  function refreshSensorStatusNote() {
+    const modeLabel =
+      ORIENTATION_MODE_LABELS[latestOrientationMode] || ORIENTATION_MODE_LABELS.waiting;
+    const isGpsLocked = gpsStabilizer?.isLocked() || false;
+    const accuracyText = latestGpsAccuracyMeters
+      ? `±${Math.round(latestGpsAccuracyMeters)}m`
+      : 'aguardando';
+    const gpsLabel = isGpsLocked ? `GPS travado (${accuracyText})` : `GPS ativo (${accuracyText})`;
+
+    transformControls.setSensorStatuses({
+      orientationText: `${modeLabel} • ${gpsLabel}`,
+      compassLocked: orientationControls?.isCompassLocked() || false,
+      gpsLocked: isGpsLocked
+    });
+  }
+
+  function alignNorthToCameraTarget() {
+    if (!orientationControls || !calibrationGroup) {
+      return null;
+    }
+
+    const targetWorldPosition = new THREE.Vector3();
+    calibrationGroup.getWorldPosition(targetWorldPosition);
+    const updatedOffset = orientationControls.alignTargetBearingToCamera(targetWorldPosition);
+
+    if (updatedOffset !== null) {
+      hud.setStatus(`Norte ajustado (${updatedOffset > 0 ? '+' : ''}${updatedOffset}°)`);
+    }
+    return updatedOffset;
+  }
 
   const transformControls = createTransformControls({
     toggleButton: elements.transformToggleButton,
     panelElement: elements.transformPanel,
     getInstallationContext: () => currentInstallation,
+    initialCameraFovDeg: initialCameraFovDegrees,
+    getAppliedVerticalFovDeg: () => cameraFovCalibrator?.getAppliedVerticalFovDegrees() || 0,
+    onAlignNorthToTarget: alignNorthToCameraTarget,
+    onToggleCompassLock: () => {
+      if (!orientationControls) {
+        return false;
+      }
+      const nextLocked = orientationControls.setCompassLocked(!orientationControls.isCompassLocked());
+      refreshSensorStatusNote();
+      return nextLocked;
+    },
+    onToggleGpsLock: () => {
+      if (!gpsStabilizer) {
+        return false;
+      }
+      const nextLocked = gpsStabilizer.setLocked(!gpsStabilizer.isLocked());
+      refreshSensorStatusNote();
+      return nextLocked;
+    },
+    onReanchorGps: () => {
+      gpsStabilizer?.reanchor();
+      refreshSensorStatusNote();
+      hud.setStatus('Buscando nova referência limpa de GPS...');
+    },
+    onResetSensors: () => {
+      cameraFovCalibrator?.resetToDefault();
+      orientationControls?.setManualNorthOffsetDegrees(0);
+      orientationControls?.recalibrateNorthFromCompass();
+      gpsStabilizer?.setLocked(false);
+      refreshSensorStatusNote();
+    },
     onChange: (nextState) => {
       applyTransformState(nextState);
     }
   });
 
-  /**
-   * Aplica deslocamento de posição, escala e rotação ao grupo de calibração 3D.
-   * @param {object} transformState
-   */
   const ZERO_VECTOR_3D = Object.freeze({ x: 0, y: 0, z: 0 });
 
   /**
@@ -129,8 +207,21 @@ export async function startLocationArExperience({ initialInstallationId, element
     );
   }
 
+  /**
+   * Aplica deslocamento de posição, escala, rotação e calibração de sensores da cena.
+   * @param {object} transformState
+   */
   function applyTransformState(transformState) {
     isAutoAnimationEnabled = Boolean(transformState.autoAnimate);
+
+    if (orientationControls && typeof transformState.northOffsetDeg === 'number') {
+      orientationControls.setManualNorthOffsetDegrees(transformState.northOffsetDeg);
+    }
+
+    if (cameraFovCalibrator && typeof transformState.cameraFovDeg === 'number') {
+      cameraFovCalibrator.setLongSideFovDegrees(transformState.cameraFovDeg);
+    }
+
     if (!transformGroup) {
       return;
     }
@@ -346,6 +437,18 @@ export async function startLocationArExperience({ initialInstallationId, element
     elements.buttonTargetReal?.addEventListener('click', () => {
       currentTargetMode = 'real';
       setActiveModeButton(elements.buttonTargetReal);
+      gpsStabilizer?.setPaused(false);
+
+      const stabilizedPosition = gpsStabilizer?.getStabilizedPosition();
+      if (stabilizedPosition && locarInstance) {
+        locarInstance.fakeGps(
+          stabilizedPosition.longitude,
+          stabilizedPosition.latitude,
+          null,
+          stabilizedPosition.accuracy
+        );
+      }
+
       updateTargetCoordsDisplay();
       positionAnchorAtGeoTarget();
       hud.setStatus(
@@ -358,6 +461,7 @@ export async function startLocationArExperience({ initialInstallationId, element
     elements.buttonTargetAhead?.addEventListener('click', () => {
       currentTargetMode = 'ahead';
       setActiveModeButton(elements.buttonTargetAhead);
+      gpsStabilizer?.setPaused(true);
       positionAnchorAheadOfCamera();
       updateTargetCoordsDisplay();
       hud.setStatus(
@@ -368,6 +472,8 @@ export async function startLocationArExperience({ initialInstallationId, element
     elements.buttonTargetSimulate?.addEventListener('click', () => {
       currentTargetMode = 'simulate';
       setActiveModeButton(elements.buttonTargetSimulate);
+      gpsStabilizer?.setPaused(true);
+
       if (!locarInstance) {
         return;
       }
@@ -456,6 +562,13 @@ export async function startLocationArExperience({ initialInstallationId, element
     });
   }
 
+  function readViewportDimensions() {
+    return {
+      width: Math.max(elements.canvas?.clientWidth || window.innerWidth, 1),
+      height: Math.max(elements.canvas?.clientHeight || window.innerHeight, 1)
+    };
+  }
+
   try {
     hud.setStatus('Iniciando câmera HD e sensores de orientação...');
     syncInstallationLabels(currentInstallation);
@@ -464,8 +577,9 @@ export async function startLocationArExperience({ initialInstallationId, element
     bindInteractionControls();
 
     appInstance = new App({
+      dimensionsProvider: readViewportDimensions,
       cameraOptions: {
-        hFov: SPATIAL_CONFIG.cameraHorizontalFov,
+        hFov: initialCameraFovDegrees,
         near: SPATIAL_CONFIG.cameraNear,
         far: SPATIAL_CONFIG.cameraFar
       },
@@ -478,17 +592,46 @@ export async function startLocationArExperience({ initialInstallationId, element
         }
       },
       gpsOptions: {
-        gpsMinDistance: SPATIAL_CONFIG.gpsMinDistanceMeters,
-        gpsMinAccuracy: SPATIAL_CONFIG.gpsMinAccuracyMeters
+        gpsMinDistance: SPATIAL_CONFIG.locarGpsMinDistanceMeters,
+        gpsMinAccuracy: SPATIAL_CONFIG.locarGpsMinAccuracyMeters
       },
       deviceOrientationOptions: {
-        enabled: true,
-        smoothingFactor: SPATIAL_CONFIG.orientationSmoothing
+        enabled: false
       }
     });
 
     locarInstance = await appInstance.start();
+    appInstance.renderer?.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     configureSceneRendering(appInstance.scene, appInstance.renderer);
+
+    orientationControls = createAndroidOrientationControls({
+      camera: appInstance.camera,
+      onTelemetryChange: (telemetry) => {
+        latestOrientationMode = telemetry.mode;
+        refreshSensorStatusNote();
+      }
+    });
+    await orientationControls.requestPermissionsIfRequired();
+    orientationControls.connect();
+    orientationControls.update();
+    appInstance.deviceOrientationControls = orientationControls;
+
+    cameraFovCalibrator = createCameraFovCalibrator({
+      getCamera: () => appInstance?.camera || null,
+      getVideoElement: () => appInstance?.webcam?.video || null,
+      getViewportDimensions: readViewportDimensions,
+      initialLongSideFovDegrees: initialCameraFovDegrees
+    });
+
+    const synchronizeCameraProjection = () => {
+      cameraFovCalibrator?.syncCameraFov();
+      transformControls.refreshContextLabels();
+    };
+
+    synchronizeCameraProjection();
+    appInstance.on('webcamstarted', synchronizeCameraProjection);
+    window.addEventListener('resize', synchronizeCameraProjection);
+    window.visualViewport?.addEventListener('resize', synchronizeCameraProjection);
 
     anchorGroup = new THREE.Group();
     anchorGroup.position.set(0, currentInstallation.elevationMeters, -15);
@@ -506,29 +649,45 @@ export async function startLocationArExperience({ initialInstallationId, element
     applyInstallationBaseline(currentInstallation);
     applyTransformState(transformControls.getState());
 
-    hud.setStatus('Câmera conectada. Carregando escultura 3D e sinal GPS...');
+    hud.setStatus('Câmera conectada. Carregando escultura 3D e estabilizando GPS...');
     hud.setGpsBadge('Buscando GPS...');
 
-    locarInstance.on('gpserror', (error) => {
-      console.warn('[LocationAR] Erro de geolocalização:', error);
-      hud.setGpsBadge('GPS indisponível');
-      hud.setStatus(
-        'Sinal GPS indisponível ou negado. Use "+15m à Frente" ou "Simular (25m)" para testar.'
-      );
-    });
-
-    locarInstance.on('gpsupdate', (event) => {
-      const { coords } = event.position;
-      const accuracyLabel = coords.accuracy ? `±${Math.round(coords.accuracy)}m` : 'ativo';
-      hud.setGpsBadge(`GPS: ${accuracyLabel}`);
+    locarInstance.on('gpsupdate', () => {
       hasGpsOrigin = true;
-
       if (currentTargetMode === 'real' || currentTargetMode === 'simulate') {
         positionAnchorAtGeoTarget();
       }
     });
 
-    locarInstance.startGps();
+    gpsStabilizer = createGpsStabilizer({
+      onPositionUpdate: (stabilizedCoords) => {
+        if (currentTargetMode !== 'real' || !locarInstance) {
+          return;
+        }
+        locarInstance.fakeGps(
+          stabilizedCoords.longitude,
+          stabilizedCoords.latitude,
+          null,
+          stabilizedCoords.accuracy
+        );
+      },
+      onSignalStatus: ({ accuracy, isLocked }) => {
+        latestGpsAccuracyMeters = accuracy;
+        const accuracyText = Number.isFinite(accuracy) ? `±${Math.round(accuracy)}m` : 'ativo';
+        hud.setGpsBadge(isLocked ? `GPS travado (${accuracyText})` : `GPS: ${accuracyText}`);
+        refreshSensorStatusNote();
+      },
+      onError: (error) => {
+        console.warn('[LocationAR] Erro de geolocalização:', error);
+        hud.setGpsBadge('GPS indisponível');
+        hud.setStatus(
+          'Sinal GPS indisponível ou negado. Use "+15m à Frente" ou "Simular (25m)" para testar.'
+        );
+      }
+    });
+
+    gpsStabilizer.start();
+    refreshSensorStatusNote();
     requestAnimationFrame(renderFrame);
 
     await loadInstallationModel(currentInstallation);

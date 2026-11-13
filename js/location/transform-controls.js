@@ -2,6 +2,8 @@
  * Painel interativo de testes para ajuste em tempo real de posição, escala e rotação 3D.
  */
 
+const DEFAULT_CAMERA_FOV_DEGREES = 68;
+
 const DEFAULT_TRANSFORM_STATE = Object.freeze({
   offsetX: 0,
   offsetY: 0,
@@ -10,6 +12,8 @@ const DEFAULT_TRANSFORM_STATE = Object.freeze({
   rotationXDeg: 0,
   rotationYDeg: 0,
   rotationZDeg: 0,
+  northOffsetDeg: 0,
+  cameraFovDeg: DEFAULT_CAMERA_FOV_DEGREES,
   autoAnimate: true
 });
 
@@ -79,6 +83,30 @@ const SLIDER_DEFINITIONS = Object.freeze({
       step: 1,
       formatValue: (value) => `${Math.round(value)}°`
     }
+  ],
+  sensors: [
+    {
+      key: 'northOffsetDeg',
+      label: 'Ajuste de Norte (Bússola)',
+      min: -180,
+      max: 180,
+      step: 1,
+      formatValue: (value) => `${value > 0 ? '+' : ''}${Math.round(value)}°`
+    },
+    {
+      key: 'cameraFovDeg',
+      label: 'FOV da Lente (Câmera)',
+      min: 50,
+      max: 95,
+      step: 1,
+      formatValue: (value, context) => {
+        const verticalFov = context?.appliedVerticalFovDeg;
+        if (Number.isFinite(verticalFov) && verticalFov > 0) {
+          return `${Math.round(value)}° (V:${Math.round(verticalFov)}°)`;
+        }
+        return `${Math.round(value)}°`;
+      }
+    }
   ]
 });
 
@@ -93,26 +121,48 @@ function syncSliderTrackVariables(sliderInput) {
 }
 
 /**
- * Cria o painel de calibração 3D e conecta eventos ao controlador da cena.
+ * Cria o painel de calibração 3D e conecta eventos ao controlador da cena e sensores.
  *
  * @param {object} options
  * @param {HTMLButtonElement | null} options.toggleButton
  * @param {HTMLElement | null} options.panelElement
  * @param {(state: object) => void} options.onChange
  * @param {() => { id: string, title: string, elevationMeters: number, targetDimensionMeters: number }} options.getInstallationContext
- * @returns {{ getState: () => object, refreshContextLabels: () => void, reset: () => void }}
+ * @param {number} [options.initialCameraFovDeg]
+ * @param {() => number} [options.getAppliedVerticalFovDeg]
+ * @param {() => number | null} [options.onAlignNorthToTarget]
+ * @param {() => boolean} [options.onToggleCompassLock]
+ * @param {() => boolean} [options.onToggleGpsLock]
+ * @param {() => void} [options.onReanchorGps]
+ * @param {() => void} [options.onResetSensors]
  */
 export function createTransformControls({
   toggleButton,
   panelElement,
   onChange,
-  getInstallationContext
+  getInstallationContext,
+  initialCameraFovDeg = DEFAULT_CAMERA_FOV_DEGREES,
+  getAppliedVerticalFovDeg,
+  onAlignNorthToTarget,
+  onToggleCompassLock,
+  onToggleGpsLock,
+  onReanchorGps,
+  onResetSensors
 }) {
-  const state = { ...DEFAULT_TRANSFORM_STATE };
+  const state = {
+    ...DEFAULT_TRANSFORM_STATE,
+    cameraFovDeg: initialCameraFovDeg
+  };
   const controlBindings = new Map();
   let activeTab = 'position';
   let animateToggleButton = null;
+  let compassLockButton = null;
+  let gpsLockButton = null;
+  let sensorNoteElement = null;
   let copyFeedbackElement = null;
+
+  let isCompassLocked = false;
+  let isGpsLocked = false;
 
   function emitChange() {
     onChange({ ...state });
@@ -121,10 +171,35 @@ export function createTransformControls({
   function updateControlReadout(definition, inputElement, outputElement) {
     const numericValue = Number(state[definition.key]);
     const formatted = definition.formatValue(numericValue, {
-      baseDimensionMeters: getInstallationContext().targetDimensionMeters
+      baseDimensionMeters: getInstallationContext().targetDimensionMeters,
+      appliedVerticalFovDeg: getAppliedVerticalFovDeg?.()
     });
     outputElement.textContent = formatted;
     inputElement.setAttribute('aria-valuetext', formatted);
+  }
+
+  function syncToggleButtonStates() {
+    if (animateToggleButton) {
+      animateToggleButton.setAttribute('aria-pressed', String(state.autoAnimate));
+      animateToggleButton.classList.toggle('is-active', state.autoAnimate);
+      animateToggleButton.textContent = state.autoAnimate
+        ? 'Animação: Ligada'
+        : 'Animação: Pausada';
+    }
+
+    if (compassLockButton) {
+      compassLockButton.setAttribute('aria-pressed', String(isCompassLocked));
+      compassLockButton.classList.toggle('is-active', isCompassLocked);
+      compassLockButton.textContent = isCompassLocked
+        ? 'Norte: Travado (Gyro)'
+        : 'Norte: Fusão Auto';
+    }
+
+    if (gpsLockButton) {
+      gpsLockButton.setAttribute('aria-pressed', String(isGpsLocked));
+      gpsLockButton.classList.toggle('is-active', isGpsLocked);
+      gpsLockButton.textContent = isGpsLocked ? 'GPS: Travado' : 'GPS: Ativo';
+    }
   }
 
   function syncAllControlsFromState() {
@@ -134,17 +209,14 @@ export function createTransformControls({
       updateControlReadout(binding.definition, binding.inputElement, binding.outputElement);
     }
 
-    if (animateToggleButton) {
-      animateToggleButton.setAttribute('aria-pressed', String(state.autoAnimate));
-      animateToggleButton.classList.toggle('is-active', state.autoAnimate);
-      animateToggleButton.textContent = state.autoAnimate
-        ? 'Animação: Ligada'
-        : 'Animação: Pausada';
-    }
+    syncToggleButtonStates();
   }
 
   function resetState() {
     Object.assign(state, DEFAULT_TRANSFORM_STATE);
+    isCompassLocked = false;
+    isGpsLocked = false;
+    onResetSensors?.();
     syncAllControlsFromState();
     emitChange();
   }
@@ -188,9 +260,9 @@ export function createTransformControls({
 
     sliderInput.addEventListener('input', () => {
       state[definition.key] = Number(sliderInput.value);
+      emitChange();
       syncSliderTrackVariables(sliderInput);
       updateControlReadout(definition, sliderInput, outputElement);
-      emitChange();
     });
 
     controlBindings.set(definition.key, {
@@ -201,6 +273,67 @@ export function createTransformControls({
 
     rowElement.append(headerRow, sliderInput);
     return rowElement;
+  }
+
+  function createActionButton(labelText, clickHandler) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ar-action-btn';
+    button.textContent = labelText;
+    button.addEventListener('click', clickHandler);
+    return button;
+  }
+
+  function buildSensorsExtras(sectionElement) {
+    const actionsGrid = document.createElement('div');
+    actionsGrid.className = 'ar-sensor-actions-grid';
+
+    const alignCenterButton = createActionButton('Alinhar obra ao centro', () => {
+      const updatedOffset = onAlignNorthToTarget?.();
+      if (typeof updatedOffset === 'number' && Number.isFinite(updatedOffset)) {
+        state.northOffsetDeg = updatedOffset;
+        syncAllControlsFromState();
+        if (copyFeedbackElement) {
+          copyFeedbackElement.textContent = `Norte: ${updatedOffset > 0 ? '+' : ''}${updatedOffset}°`;
+        }
+      }
+    });
+
+    compassLockButton = createActionButton('Norte: Fusão Auto', () => {
+      if (onToggleCompassLock) {
+        isCompassLocked = Boolean(onToggleCompassLock());
+      } else {
+        isCompassLocked = !isCompassLocked;
+      }
+      syncToggleButtonStates();
+    });
+
+    gpsLockButton = createActionButton('GPS: Ativo', () => {
+      if (onToggleGpsLock) {
+        isGpsLocked = Boolean(onToggleGpsLock());
+      } else {
+        isGpsLocked = !isGpsLocked;
+      }
+      syncToggleButtonStates();
+    });
+
+    const reanchorGpsButton = createActionButton('Reancorar GPS', () => {
+      onReanchorGps?.();
+      isGpsLocked = false;
+      syncToggleButtonStates();
+      if (copyFeedbackElement) {
+        copyFeedbackElement.textContent = 'GPS reancorado';
+      }
+    });
+
+    actionsGrid.append(alignCenterButton, compassLockButton, gpsLockButton, reanchorGpsButton);
+
+    sensorNoteElement = document.createElement('p');
+    sensorNoteElement.className = 'ar-sensor-note';
+    sensorNoteElement.textContent =
+      'Dica: aponte para onde a obra deve ficar e toque em "Alinhar obra ao centro". Depois trave o Norte.';
+
+    sectionElement.append(actionsGrid, sensorNoteElement);
   }
 
   function buildPanelDom() {
@@ -215,7 +348,7 @@ export function createTransformControls({
 
     const title = document.createElement('h2');
     title.className = 'ar-calib-title';
-    title.textContent = 'Ajuste 3D (Posição • Escala • Rotação)';
+    title.textContent = 'Ajuste 3D • Posição, Escala & Sensores';
 
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
@@ -239,7 +372,8 @@ export function createTransformControls({
     const tabDescriptors = [
       { id: 'position', label: 'Posição' },
       { id: 'scale', label: 'Escala' },
-      { id: 'rotation', label: 'Rotação' }
+      { id: 'rotation', label: 'Rotação' },
+      { id: 'sensors', label: 'Sensores' }
     ];
 
     function activateTab(tabId) {
@@ -273,15 +407,16 @@ export function createTransformControls({
       }
 
       if (tab.id === 'rotation') {
-        animateToggleButton = document.createElement('button');
-        animateToggleButton.type = 'button';
-        animateToggleButton.className = 'ar-action-btn';
-        animateToggleButton.addEventListener('click', () => {
+        animateToggleButton = createActionButton('', () => {
           state.autoAnimate = !state.autoAnimate;
           syncAllControlsFromState();
           emitChange();
         });
         sectionElement.appendChild(animateToggleButton);
+      }
+
+      if (tab.id === 'sensors') {
+        buildSensorsExtras(sectionElement);
       }
 
       sectionsByTab.set(tab.id, sectionElement);
@@ -354,7 +489,19 @@ export function createTransformControls({
   return {
     getState: () => ({ ...state }),
     refreshContextLabels: syncAllControlsFromState,
-    reset: resetState
+    reset: resetState,
+    setSensorStatuses: ({ orientationText, compassLocked, gpsLocked }) => {
+      if (typeof compassLocked === 'boolean') {
+        isCompassLocked = compassLocked;
+      }
+      if (typeof gpsLocked === 'boolean') {
+        isGpsLocked = gpsLocked;
+      }
+      if (sensorNoteElement && orientationText) {
+        sensorNoteElement.textContent = orientationText;
+      }
+      syncToggleButtonStates();
+    }
   };
 }
 
