@@ -85,6 +85,7 @@
         <button type="button" class="ar-action-btn is-active" data-installation-id="01">01 • Mão Apontando</button>
         <button type="button" class="ar-action-btn" data-installation-id="02">02 • Mão em Pé</button>
         <button type="button" class="ar-action-btn" data-installation-id="03">03 • Origami</button>
+        <button type="button" class="ar-action-btn" data-installation-id="04">04 • Avião de Papel</button>
       </div>
 
       <div class="ar-location-actions">
@@ -107,7 +108,7 @@
 
     const params = new URLSearchParams(window.location.search);
     const requestedId = params.get('obra');
-    const validIds = ['01', '02', '03'];
+    const validIds = ['01', '02', '03', '04'];
     const initialId = validIds.includes(requestedId) ? requestedId : '01';
 
     if (initialId !== '01') {

@@ -17,6 +17,7 @@ Projeto de Realidade Aumentada baseada na Web (WebAR) com foco exclusivo em **ge
 | **01 • Mão Apontando** | `assets/location/01_mao_apontando.glb` | Meio do Cruzamento da Avenida da Universidade | `-3.740955, -38.539123` | `location/01.html` |
 | **02 • Mão em Pé** | `assets/location/02_mao_em_pe.glb` | Pátio Central IFCE | `-3.744483, -38.536499` | `location/02.html` |
 | **03 • Origami** | `assets/location/origami.glb` | Lago do Jacarey | `-3.800710, -38.490736` | `location/03.html` |
+| **04 • Avião de Papel** | `assets/location/aviao_de_papel.glb` | Píer da Messejana | `-3.831601, -38.497673` | `location/04.html` |
 
 ---
 
@@ -47,12 +48,14 @@ artist-project/
 ├── location/
 │   ├── 01.html                          # Obra 01 — Mão Apontando
 │   ├── 02.html                          # Obra 02 — Mão em Pé
-│   └── 03.html                          # Obra 03 — Origami
+│   ├── 03.html                          # Obra 03 — Origami
+│   └── 04.html                          # Obra 04 — Avião de Papel
 ├── assets/
 │   └── location/
 │       ├── 01_mao_apontando.glb
 │       ├── 02_mao_em_pe.glb
-│       └── origami.glb
+│       ├── origami.glb
+│       └── aviao_de_papel.glb
 ├── css/
 │   └── main.css                         # Estilos do HUD WebAR, <progress> e sliders 3D
 └── js/

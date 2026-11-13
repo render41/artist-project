@@ -42,6 +42,19 @@ export const INSTALLATIONS = Object.freeze([
     targetDimensionMeters: 4.8,
     idleRotationSpeed: 0.2,
     levitationAmplitude: 0.22
+  }),
+  Object.freeze({
+    id: '04',
+    slug: 'aviao-de-papel',
+    title: 'Avião de Papel',
+    locationName: 'Píer da Messejana',
+    latitude: -3.831601,
+    longitude: -38.497673,
+    modelUrl: new URL('../../assets/location/aviao_de_papel.glb', import.meta.url).href,
+    elevationMeters: 2.5,
+    targetDimensionMeters: 4.5,
+    idleRotationSpeed: 0.25,
+    levitationAmplitude: 0.22
   })
 ]);
 

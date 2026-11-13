@@ -59,6 +59,9 @@ function configureMaterials(rootObject) {
       if (material.map) {
         material.map.colorSpace = THREE.SRGBColorSpace;
       }
+      if (!material.name) {
+        material.side = THREE.DoubleSide;
+      }
       material.needsUpdate = true;
     }
   });
