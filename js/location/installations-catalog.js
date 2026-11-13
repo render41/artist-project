@@ -6,8 +6,8 @@
 export const INSTALLATIONS = Object.freeze([
   Object.freeze({
     id: '01',
-    slug: 'mao-apontando',
-    title: 'Mão Apontando',
+    slug: 'av-da-universidade',
+    title: 'Av da Universidade',
     locationName: 'Meio do Cruzamento da Avenida da Universidade',
     latitude: -3.740955,
     longitude: -38.539123,
@@ -19,8 +19,8 @@ export const INSTALLATIONS = Object.freeze([
   }),
   Object.freeze({
     id: '02',
-    slug: 'mao-em-pe',
-    title: 'Mão em Pé',
+    slug: 'ifce-13-de-maio',
+    title: 'IFCE 13 de Maio',
     locationName: 'Pátio Central IFCE',
     latitude: -3.744483,
     longitude: -38.536499,
@@ -32,8 +32,8 @@ export const INSTALLATIONS = Object.freeze([
   }),
   Object.freeze({
     id: '03',
-    slug: 'origami',
-    title: 'Origami',
+    slug: 'jacarey',
+    title: 'Jacarey',
     locationName: 'Lago do Jacarey',
     latitude: -3.800710,
     longitude: -38.490736,
@@ -45,8 +45,8 @@ export const INSTALLATIONS = Object.freeze([
   }),
   Object.freeze({
     id: '04',
-    slug: 'aviao-de-papel',
-    title: 'Avião de Papel',
+    slug: 'messejana',
+    title: 'Messejana',
     locationName: 'Píer da Messejana',
     latitude: -3.831601,
     longitude: -38.497673,
