@@ -272,6 +272,20 @@ export async function startLocationArExperience({ initialInstallationId, element
   }
 
   /**
+   * Atualiza os rótulos de cabeçalho e botão de modo real conforme a instalação ativa.
+   * @param {Readonly<object>} installation
+   */
+  function syncInstallationLabels(installation) {
+    const labelPrefix = installation.shortLabel || `Obra ${installation.id}`;
+    if (elements.badgeElement) {
+      elements.badgeElement.textContent = `${labelPrefix} • ${installation.title}`;
+    }
+    if (elements.buttonTargetReal) {
+      elements.buttonTargetReal.textContent = `${labelPrefix} (Real)`;
+    }
+  }
+
+  /**
    * Alterna para outra obra do catálogo (usado no laboratório unificado).
    * @param {string} installationId
    */
@@ -279,12 +293,7 @@ export async function startLocationArExperience({ initialInstallationId, element
     const nextInstallation = findInstallationById(installationId);
     currentInstallation = nextInstallation;
 
-    if (elements.badgeElement) {
-      elements.badgeElement.textContent = `Obra ${nextInstallation.id} • ${nextInstallation.title}`;
-    }
-    if (elements.buttonTargetReal) {
-      elements.buttonTargetReal.textContent = `Obra ${nextInstallation.id} (Real)`;
-    }
+    syncInstallationLabels(nextInstallation);
 
     updateTargetCoordsDisplay();
     transformControls.refreshContextLabels();
@@ -421,6 +430,7 @@ export async function startLocationArExperience({ initialInstallationId, element
 
   try {
     hud.setStatus('Iniciando câmera HD e sensores de orientação...');
+    syncInstallationLabels(currentInstallation);
     updateTargetCoordsDisplay();
     transformControls.refreshContextLabels();
     bindInteractionControls();

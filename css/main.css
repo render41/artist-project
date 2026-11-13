@@ -23,27 +23,7 @@ html, body {
 }
 
 /* --------------------------------------------------------------------------
-   Estrutura de Câmera e Canvas 3D
-   O AR.js calcula a proporção geométrica 1:1 via inline styles.
-   O CSS garante z-index e posicionamento sem achatar o aspecto.
-   -------------------------------------------------------------------------- */
-
-#arjs-video {
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  z-index: 1 !important;
-}
-
-/* Evita que vídeos de textura (assets) apareçam sobre o feed da câmera */
-a-assets video,
-#overlay-video {
-  display: none !important;
-  position: static !important;
-}
-
-/* --------------------------------------------------------------------------
-   Suporte Específico para LocAR (Three.js puro)
+   Suporte para LocAR (Three.js puro)
    -------------------------------------------------------------------------- */
 body.locar-mode {
   background: transparent !important;
@@ -68,21 +48,6 @@ body.locar-mode video {
   height: 100%;
   z-index: 2;
   pointer-events: none;
-}
-
-canvas.a-canvas {
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  z-index: 2 !important;
-  background-color: transparent !important;
-}
-
-/* Ocultar elementos padrão do A-Frame */
-.a-enter-vr,
-.a-enter-ar,
-.a-orientation-modal {
-  display: none !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -173,45 +138,6 @@ canvas.a-canvas {
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 5px 10px;
   border-radius: 3px;
-}
-
-/* --------------------------------------------------------------------------
-   Carregador NFT (AR.js)
-   Design minimalista, sem loaders coloridos ou animações chamativas
-   -------------------------------------------------------------------------- */
-
-.arjs-loader {
-  position: fixed;
-  inset: 0;
-  background-color: #0c0c0e;
-  z-index: 99999;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  padding: 24px;
-  transition: opacity 0.35s ease, visibility 0.35s ease;
-}
-
-.arjs-loader.is-hidden {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.arjs-loader-title {
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: #fafafa;
-}
-
-.arjs-loader-detail {
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  color: #71717a;
-  letter-spacing: 0.04em;
 }
 
 /* --------------------------------------------------------------------------
@@ -436,8 +362,7 @@ canvas.a-canvas {
 }
 
 /* --------------------------------------------------------------------------
-   Painel de Ajuste Fino e Calibração WebAR NFT
-   Permite ajuste milimétrico de tamanho e posição em tempo real no mobile
+   Painel de Calibração e Ajuste Fino WebAR
    -------------------------------------------------------------------------- */
 
 .ar-calib-toggle {
@@ -486,12 +411,6 @@ canvas.a-canvas {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 }
 
-.ar-calib-panel.is-hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(20px);
-}
-
 .ar-calib-header {
   display: flex;
   justify-content: space-between;
@@ -516,30 +435,6 @@ canvas.a-canvas {
   line-height: 1;
   padding: 4px 8px;
   cursor: pointer;
-}
-
-.ar-calib-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ar-calib-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.ar-calib-label {
-  font-size: 11px;
-  color: #cbd5e1;
-  font-weight: 500;
-}
-
-.ar-calib-actions {
-  display: flex;
-  gap: 6px;
 }
 
 .ar-calib-btn {
@@ -621,47 +516,6 @@ canvas.a-canvas {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.ar-calib-section.is-hidden {
-  display: none;
-}
-
-.ar-calib-presets {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.ar-calib-preset-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 8px 4px;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.15s ease;
-}
-
-.ar-calib-preset-btn.is-active {
-  background: rgba(59, 130, 246, 0.25);
-  border-color: rgba(59, 130, 246, 0.7);
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.ar-calib-val-badge {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #38bdf8;
-  margin-left: 4px;
 }
 
 /* --------------------------------------------------------------------------
