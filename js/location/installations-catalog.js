@@ -55,8 +55,11 @@ export const INSTALLATIONS = Object.freeze([
     latitude: -3.831601,
     longitude: -38.497673,
     modelUrl: new URL('../../assets/location/aviao_de_papel.glb', import.meta.url).href,
-    elevationMeters: 2.5,
-    targetDimensionMeters: 4.5,
+    elevationMeters: 14.5,
+    targetDimensionMeters: 13.5,
+    // offsetMeters.y (12m) já está consolidado em elevationMeters (2.5 + 12 = 14.5m) para evitar soma dupla na altura.
+    defaultOffsetMeters: Object.freeze({ x: -2.75, y: 0, z: -12 }),
+    defaultRotationDegrees: Object.freeze({ x: 50, y: 51, z: -13 }),
     idleRotationSpeed: 0.25,
     levitationAmplitude: 0.22
   })
